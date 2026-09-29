@@ -21,10 +21,10 @@ import { useTheme } from '@/lib/theme';
  */
 export function QuickAdd() {
   const theme = useTheme();
-  const { shops, members, viewer, settings, addTransaction, removeTransaction, setMonth } =
+  const { shops, members, viewer, currentUser, settings, addTransaction, removeTransaction, setMonth } =
     useStore();
   const [amount, setAmount] = useState('');
-  const [payer, setPayer] = useState(viewer ?? members[0].id);
+  const [payer, setPayer] = useState(viewer ?? currentUser?.id ?? members[0].id);
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<{ id: string; text: string } | null>(null);
   const input = useRef<TextInput>(null);

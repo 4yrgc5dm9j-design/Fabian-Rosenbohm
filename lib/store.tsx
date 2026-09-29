@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getRandomBytes } from 'expo-crypto';
 import {
   createContext,
   useCallback,
@@ -20,6 +21,7 @@ import {
   type Shop,
   type Transaction,
 } from './budget.ts';
+import { createCredentials, login, verifyPassword } from './auth.ts';
 import {
   createHousehold,
   mergeHouseholds,
@@ -31,12 +33,32 @@ import {
 
 const STORAGE_KEY = 'haushaltsbuch/household/v2';
 const LEGACY_KEY = 'haushaltsbuch/transactions/v1';
+const SESSION_KEY = 'haushaltsbuch/session/v1';
 
 export type TransactionInput = Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>;
 export type FixedInput = Omit<FixedItem, 'id' | 'updatedAt'>;
 
+export type RegisterInput = {
+  /** Bestehende Person ohne Konto oder `null` für eine neue Person. */
+  memberId: string | null;
+  name: string;
+  username: string;
+  password: string;
+  remember: boolean;
+};
+
 type Store = HouseholdData & {
   loaded: boolean;
+  /** Angemeldete Person oder `null`. */
+  currentUser: Member | null;
+  /** Gibt es schon mindestens ein Benutzerkonto? */
+  hasAccounts: boolean;
+  signIn: (username: string, password: string, remember: boolean) => Promise<boolean>;
+  register: (input: RegisterInput) => Promise<void>;
+  signOut: () => void;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
+  /** Entfernt das Konto einer anderen Person, damit sie es neu einrichten kann. */
+  resetAccount: (memberId: string) => void;
   /** Aktuell ausgewählter Monat (YYYY-MM), geteilt zwischen den Tabs. */
   month: string;
   setMonth: (month: string) => void;
@@ -76,10 +98,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<HouseholdData>(() => createHousehold());
   const [month, setMonth] = useState(() => monthKey(toDateString(new Date())));
   const [viewer, setViewer] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadHousehold()
-      .then(setData)
+    Promise.all([loadHousehold(), AsyncStorage.getItem(SESSION_KEY)])
+      .then(([household, session]) => {
+        setData(household);
+        setSessionId(session);
+      })
       .catch((e) => console.warn('Daten konnten nicht geladen werden', e))
       .finally(() => setLoaded(true));
   }, []);
@@ -97,6 +123,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (viewer && !data.members.some((m) => m.id === viewer)) setViewer(null);
   }, [viewer, data.members]);
+
+  const startSession = useCallback((memberId: string, remember: boolean) => {
+    setSessionId(memberId);
+    setViewer(null);
+    const write = remember
+      ? AsyncStorage.setItem(SESSION_KEY, memberId)
+      : AsyncStorage.removeItem(SESSION_KEY);
+    write.catch((e) => console.warn('Anmeldung konnte nicht gespeichert werden', e));
+  }, []);
+
+  const currentUser = useMemo(
+    () => data.members.find((m) => m.id === sessionId && m.account) ?? null,
+    [data.members, sessionId],
+  );
 
   const patch = useCallback((fn: (d: HouseholdData) => Partial<HouseholdData>) => {
     setData((d) => ({ ...d, ...fn(d) }));
@@ -172,17 +212,81 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateSettings: (p: Partial<Settings>) =>
         patch((d) => ({ settings: { ...d.settings, ...p } })),
       importHousehold: (other: HouseholdData) => setData((d) => mergeHouseholds(d, other)),
-      resetAll: () => setData(createHousehold()),
+      resetAll: () => {
+        setData(createHousehold());
+        setSessionId(null);
+        AsyncStorage.removeItem(SESSION_KEY).catch(() => {});
+      },
+      signIn: async (username: string, password: string, remember: boolean) => {
+        await nextFrame();
+        const member = login(data.members, username, password);
+        if (member) startSession(member.id, remember);
+        return member !== null;
+      },
+      register: async (input: RegisterInput) => {
+        await nextFrame();
+        const account = createCredentials(input.username, input.password, getRandomBytes(16));
+        const now = Date.now();
+        const id = input.memberId ?? newId();
+        patch((d) => {
+          if (input.memberId) {
+            return {
+              members: d.members.map((m) =>
+                m.id === id ? { ...m, name: input.name, account, updatedAt: now } : m,
+              ),
+            };
+          }
+          const used = new Set(d.members.map((m) => m.color));
+          const color = MEMBER_COLORS.find((c) => !used.has(c)) ?? MEMBER_COLORS[0];
+          return { members: [...d.members, { id, name: input.name, color, account, updatedAt: now }] };
+        });
+        startSession(id, input.remember);
+      },
+      signOut: () => {
+        setSessionId(null);
+        AsyncStorage.removeItem(SESSION_KEY).catch(() => {});
+      },
+      changePassword: async (oldPassword: string, newPassword: string) => {
+        await nextFrame();
+        const me = data.members.find((m) => m.id === sessionId);
+        if (!me?.account || !verifyPassword(me.account, oldPassword)) return false;
+        const account = createCredentials(me.account.username, newPassword, getRandomBytes(16));
+        patch((d) => ({
+          members: d.members.map((m) => (m.id === me.id ? { ...m, account, updatedAt: Date.now() } : m)),
+        }));
+        return true;
+      },
+      resetAccount: (memberId: string) =>
+        patch((d) => ({
+          members: d.members.map((m) =>
+            m.id === memberId ? { ...m, account: undefined, updatedAt: Date.now() } : m,
+          ),
+        })),
     }),
-    [patch, data.members, data.transactions, data.fixed, data.settlements],
+    [patch, startSession, sessionId, data.members, data.transactions, data.fixed, data.settlements],
   );
 
   const value = useMemo<Store>(
-    () => ({ ...data, ...actions, loaded, month, setMonth, viewer, setViewer }),
-    [data, actions, loaded, month, viewer],
+    () => ({
+      ...data,
+      ...actions,
+      loaded,
+      month,
+      setMonth,
+      viewer,
+      setViewer,
+      currentUser,
+      hasAccounts: data.members.some((m) => m.account),
+    }),
+    [data, actions, loaded, month, viewer, currentUser],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+}
+
+/** Gibt dem UI Zeit, einen Ladezustand zu zeichnen, bevor das Hashing rechnet. */
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 30));
 }
 
 export function useStore(): Store {

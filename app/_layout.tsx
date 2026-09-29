@@ -29,7 +29,7 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { loaded } = useStore();
+  const { loaded, currentUser } = useStore();
 
   useEffect(() => {
     if (loaded) SplashScreen.hideAsync();
@@ -37,12 +37,20 @@ function RootLayoutNav() {
 
   if (!loaded) return null;
 
+  const signedIn = currentUser !== null;
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="buchung" options={{ presentation: 'modal', title: 'Buchung' }} />
-        <Stack.Screen name="fixposten" options={{ title: 'Fixkosten & Einkommen' }} />
+        {/* Ohne Anmeldung ist nur der Anmeldebildschirm erreichbar. */}
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="buchung" options={{ presentation: 'modal', title: 'Buchung' }} />
+          <Stack.Screen name="fixposten" options={{ title: 'Fixkosten & Einkommen' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="anmelden" options={{ headerShown: false }} />
+        </Stack.Protected>
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

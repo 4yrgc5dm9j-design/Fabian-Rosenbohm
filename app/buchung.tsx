@@ -46,7 +46,7 @@ type SplitMode = 'none' | 'even' | 'custom';
 export default function TransactionForm() {
   const params = useLocalSearchParams<{ id?: string; fixedId?: string; fixed?: string; type?: string }>();
   const store = useStore();
-  const { transactions, fixed, members, shops, month, viewer, settings } = store;
+  const { transactions, fixed, members, shops, month, viewer, currentUser, settings } = store;
   const theme = useTheme();
 
   const existingTx = params.id ? transactions.find((t) => t.id === params.id) : undefined;
@@ -63,7 +63,7 @@ export default function TransactionForm() {
   const [date, setDate] = useState(() => existingTx?.date ?? defaultDate(month));
   const [recurring, setRecurring] = useState(Boolean(existingFixed) || params.fixed === '1');
   const [startMonth, setStartMonth] = useState(existingFixed?.startMonth ?? month);
-  const [paidBy, setPaidBy] = useState(existing?.paidBy ?? viewer ?? members[0].id);
+  const [paidBy, setPaidBy] = useState(existing?.paidBy ?? viewer ?? currentUser?.id ?? members[0].id);
   const [splitMode, setSplitMode] = useState<SplitMode>(() => {
     if (existing?.split?.length) {
       const even = splitEvenly(existing.amountCents, existing.split.map((s) => s.memberId));

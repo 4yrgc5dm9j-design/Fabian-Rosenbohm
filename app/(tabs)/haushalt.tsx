@@ -15,6 +15,7 @@ import {
   toDateString,
 } from '@/lib/budget';
 import { confirm, notify } from '@/lib/confirm';
+import { validateAccount } from '@/lib/auth';
 import { exportCode, parseExportCode, toCsv } from '@/lib/household';
 import { useMemberName, useStore } from '@/lib/store';
 import { useTheme, type Theme } from '@/lib/theme';
@@ -22,7 +23,7 @@ import { useTheme, type Theme } from '@/lib/theme';
 export default function HouseholdScreen() {
   const theme = useTheme();
   const store = useStore();
-  const { members, transactions, fixed, settlements, shops, settings } = store;
+  const { members, transactions, fixed, settlements, shops, settings, currentUser } = store;
   const memberName = useMemberName();
   const today = toDateString(new Date());
 
@@ -32,6 +33,34 @@ export default function HouseholdScreen() {
   const [goal, setGoal] = useState(settings.savingsGoalCents ? centsToInput(settings.savingsGoalCents) : '');
   const [importText, setImportText] = useState('');
   const [exportText, setExportText] = useState<string | null>(null);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRepeat, setNewRepeat] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function changePassword() {
+    if (!currentUser?.account) return;
+    const problem = validateAccount(currentUser.account.username, newPassword, newRepeat, members, currentUser.id);
+    if (problem) return setPasswordMessage({ ok: false, text: problem });
+    const ok = await store.changePassword(oldPassword, newPassword);
+    setPasswordMessage(
+      ok ? { ok: true, text: 'Passwort geändert.' } : { ok: false, text: 'Das aktuelle Passwort ist falsch.' },
+    );
+    if (ok) {
+      setOldPassword('');
+      setNewPassword('');
+      setNewRepeat('');
+    }
+  }
+
+  async function resetAccount(id: string) {
+    const ok = await confirm(
+      'Konto zurücksetzen',
+      `Das Benutzerkonto von ${memberName(id)} wird entfernt. ${memberName(id)} kann danach beim Anmelden ein neues Passwort festlegen. Die Buchungen bleiben erhalten.`,
+      'Zurücksetzen',
+    );
+    if (ok) store.resetAccount(id);
+  }
 
   const debts = useMemo(() => {
     const entries = entriesUntil(transactions, fixed, monthKey(today));
@@ -73,6 +102,55 @@ export default function HouseholdScreen() {
       style={{ backgroundColor: theme.background }}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">
+      {currentUser ? (
+        <Card>
+          <CardTitle>Mein Konto</CardTitle>
+          <Text style={{ color: theme.text, fontSize: 16 }}>
+            Angemeldet als <Text style={{ fontWeight: '700' }}>{currentUser.name}</Text>
+          </Text>
+          <Text style={{ color: theme.muted, marginTop: 2 }}>Benutzername: {currentUser.account?.username}</Text>
+          <Label>Passwort ändern</Label>
+          <TextInput
+            value={oldPassword}
+            onChangeText={setOldPassword}
+            placeholder="Aktuelles Passwort"
+            placeholderTextColor={theme.muted}
+            secureTextEntry
+            autoCapitalize="none"
+            style={[inputStyle, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+          />
+          <View style={{ height: 8 }} />
+          <TextInput
+            value={newPassword}
+            onChangeText={setNewPassword}
+            placeholder="Neues Passwort (mind. 6 Zeichen)"
+            placeholderTextColor={theme.muted}
+            secureTextEntry
+            autoCapitalize="none"
+            style={[inputStyle, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+          />
+          <View style={{ height: 8 }} />
+          <TextInput
+            value={newRepeat}
+            onChangeText={setNewRepeat}
+            placeholder="Neues Passwort wiederholen"
+            placeholderTextColor={theme.muted}
+            secureTextEntry
+            autoCapitalize="none"
+            style={[inputStyle, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+          />
+          {passwordMessage ? (
+            <Text style={{ color: passwordMessage.ok ? theme.income : theme.expense, marginTop: 8 }}>
+              {passwordMessage.text}
+            </Text>
+          ) : null}
+          <View style={{ height: 10 }} />
+          <Button label="Passwort ändern" variant="outline" onPress={changePassword} />
+          <View style={{ height: 10 }} />
+          <Button label="Abmelden" color={theme.expense} onPress={store.signOut} />
+        </Card>
+      ) : null}
+
       <Card>
         <CardTitle>Personen im Haushalt</CardTitle>
         {members.map((m) => (
@@ -86,9 +164,21 @@ export default function HouseholdScreen() {
               accessibilityLabel="Name"
               style={[inputStyle, styles.flex, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background, paddingVertical: 8 }]}
             />
-            {members.length > 1 ? (
+            {m.id !== currentUser?.id ? (
               <Pressable onPress={() => removeMember(m.id)} hitSlop={8} accessibilityLabel={`${m.name} entfernen`}>
                 <Text style={{ color: theme.expense, fontSize: 20 }}>✕</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ))}
+        {members.map((m) => (
+          <View key={`acc-${m.id}`} style={styles.accountRow}>
+            <Text style={{ color: theme.muted, flex: 1, fontSize: 13 }}>
+              {m.name}: {m.account ? `Konto „${m.account.username}“` : 'noch kein Konto – kann es beim Anmelden einrichten'}
+            </Text>
+            {m.account && m.id !== currentUser?.id ? (
+              <Pressable onPress={() => resetAccount(m.id)} hitSlop={8}>
+                <Text style={{ color: theme.tint, fontSize: 13, fontWeight: '600' }}>Zurücksetzen</Text>
               </Pressable>
             ) : null}
           </View>
@@ -295,4 +385,5 @@ const styles = StyleSheet.create({
   debtAmount: { fontSize: 22, fontWeight: '700' },
   linkRow: { flexDirection: 'row', alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12 },
   code: { minHeight: 70, marginTop: 10, fontSize: 12 },
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
 });

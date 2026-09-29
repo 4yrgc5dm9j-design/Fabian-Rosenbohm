@@ -36,7 +36,7 @@ function toInput(n: number): string {
 
 export default function NettoScreen() {
   const theme = useTheme();
-  const { settings, updateSettings, members, viewer, addFixed } = useStore();
+  const { settings, updateSettings, members, viewer, currentUser, addFixed } = useStore();
   const input: NettoInput = { ...DEFAULT_NETTO_INPUT, ...settings.netto };
   const [period, setPeriod] = useState<'month' | 'year'>('month');
   const [grossText, setGrossText] = useState(toInput(input.grossMonthly));
@@ -56,7 +56,7 @@ export default function NettoScreen() {
   }
 
   function takeOver() {
-    const owner = viewer ?? members[0].id;
+    const owner = viewer ?? currentUser?.id ?? members[0].id;
     addFixed({
       type: 'income',
       amountCents: Math.round(result.net * 100),

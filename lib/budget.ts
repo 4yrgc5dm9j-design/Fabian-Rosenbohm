@@ -42,7 +42,14 @@ export type FixedItem = {
 /** Eine Buchung oder die Monatsinstanz eines Fixpostens. */
 export type Entry = Transaction & { fixedId?: string };
 
-export type Member = { id: string; name: string; color: string; updatedAt?: number };
+export type Member = {
+  id: string;
+  name: string;
+  color: string;
+  updatedAt?: number;
+  /** Benutzerkonto zum Anmelden. Fehlt, solange die Person noch kein Konto eingerichtet hat. */
+  account?: import('./auth.ts').Credentials;
+};
 
 export type Shop = { id: string; name: string; category: string };
 
