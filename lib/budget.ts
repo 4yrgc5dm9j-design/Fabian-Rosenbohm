@@ -138,7 +138,8 @@ export function parseAmount(input: string): number | null {
 const euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 
 export function formatCents(cents: number): string {
-  return euro.format(cents / 100);
+  // `|| 0` macht aus -0 eine 0, sonst stünde dort "-0,00 €".
+  return euro.format((cents || 0) / 100);
 }
 
 /** Kurzform für enge Stellen, z. B. Diagrammbeschriftungen: "1,2 Tsd. €". */

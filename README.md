@@ -80,7 +80,29 @@ Beim ersten Öffnen erscheint „Willkommen!“. Dort legst du dein Benutzerkont
 
 Das Terminalfenster muss geöffnet bleiben, solange du die App über Expo Go benutzt. Für eine eigenständige App ohne Computer (App-Store-Version) wird sie mit EAS Build gebaut (`npx eas-cli build`, kostenloses Expo-Konto nötig).
 
-## Als echte iOS-App installieren
+## Kostenlos als Web-App aufs iPhone
+
+Die App läuft auch im Browser und lässt sich auf dem iPhone wie eine normale App auf den Home-Bildschirm legen: mit eigenem Icon, im Vollbild und ohne Kosten. GitHub baut und veröffentlicht sie bei jeder Änderung automatisch (`.github/workflows/pages.yml`).
+
+**Einmalig einrichten (auf github.com, am Computer oder im Handy-Browser):**
+1. Im Repository **Settings → General** ganz unten bei „Danger Zone“ auf **Change visibility → Make public** klicken. GitHub Pages ist nur für öffentliche Repositories kostenlos. Sichtbar wird dadurch nur der Programmcode, deine Buchungen liegen ausschließlich auf deinem Gerät.
+2. **Settings → Pages**: Bei „Source“ **GitHub Actions** auswählen.
+3. **Actions → „Web-App veröffentlichen“ → Run workflow** klicken (oder einfach auf die nächste Änderung warten). Nach ca. 3 Minuten ist die App online unter:
+   **https://4yrgc5dm9j-design.github.io/Fabian-Rosenbohm/**
+
+**Auf dem iPhone installieren:**
+1. Den Link oben in **Safari** öffnen (nicht in Chrome oder einer anderen App).
+2. Unten auf das **Teilen-Symbol** (Quadrat mit Pfeil nach oben) tippen.
+3. **„Zum Home-Bildschirm“** wählen und auf **Hinzufügen** tippen.
+4. Die App über das neue Icon „Haushalt“ öffnen und das Benutzerkonto anlegen.
+
+Jede Person installiert die App auf ihrem eigenen iPhone. Die Daten bleiben auf dem jeweiligen Gerät. Zum Abgleichen dient „Haushalt → Haushalt zusammenführen“.
+
+**Wichtig:** Die Daten liegen im Speicher von Safari. Wenn du in den iPhone-Einstellungen unter Safari „Verlauf und Websitedaten löschen“ wählst, sind sie weg. Sichere deshalb ab und zu über „Haushalt → Meinen Code teilen“, zum Beispiel per Nachricht an dich selbst oder in die Notizen-App.
+
+Lokal bauen: `npm run build:web` (Ergebnis in `dist/`).
+
+## Als echte iOS-App installieren (kostenpflichtig)
 
 Die App wird mit **EAS Build** in der Cloud gebaut. Ein Mac ist nicht nötig.
 

@@ -33,7 +33,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "test": "node --no-warnings --test \"lib/**/*.test.ts\""
+    "test": "node --no-warnings --test \"lib/**/*.test.ts\"",
+    "build:web": "node scripts/build-web.mjs"
   },
   "private": true
 }

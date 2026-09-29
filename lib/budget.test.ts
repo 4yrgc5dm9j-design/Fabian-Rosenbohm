@@ -8,6 +8,7 @@ import {
   centsToInput,
   entriesForMonth,
   entriesUntil,
+  formatCents,
   freeIncome,
   simplifyDebts,
   splitEvenly,
@@ -53,6 +54,11 @@ test('parseAmount lehnt ungültige Beträge ab', () => {
   assert.equal(parseAmount('-5'), null);
   assert.equal(parseAmount('abc'), null);
   assert.equal(parseAmount('1,234'), null);
+});
+
+test('formatCents zeigt kein negatives Null', () => {
+  assert.equal(formatCents(-0).replace(/\s/g, ' '), '0,00 €');
+  assert.equal(formatCents(-1250).replace(/\s/g, ' '), '-12,50 €');
 });
 
 test('centsToInput ergibt wieder parsebaren Text', () => {
