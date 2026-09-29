@@ -80,6 +80,35 @@ Beim ersten Öffnen erscheint „Willkommen!“. Dort legst du dein Benutzerkont
 
 Das Terminalfenster muss geöffnet bleiben, solange du die App über Expo Go benutzt. Für eine eigenständige App ohne Computer (App-Store-Version) wird sie mit EAS Build gebaut (`npx eas-cli build`, kostenloses Expo-Konto nötig).
 
+## Als echte iOS-App installieren
+
+Die App wird mit **EAS Build** in der Cloud gebaut. Ein Mac ist nicht nötig.
+
+**Voraussetzungen**
+- Ein kostenloses **Expo-Konto**: https://expo.dev/signup
+- Eine Mitgliedschaft im **Apple Developer Program** (99 € pro Jahr): https://developer.apple.com/programs/enroll/. Die Freischaltung kann 1–2 Tage dauern.
+
+**Bauen und auf TestFlight hochladen** (im Projektordner, auf dem Computer oder in GitHub Codespaces):
+
+```bash
+npx eas-cli@latest login              # mit dem Expo-Konto anmelden
+npx eas-cli@latest build -p ios       # baut die App (ca. 15–30 Min.), fragt einmalig nach dem Apple-Login
+npx eas-cli@latest submit -p ios      # lädt die fertige App zu App Store Connect / TestFlight hoch
+```
+
+Beim ersten `build` fragt EAS nach deinem Apple-Konto und legt Zertifikate und Profile automatisch an. Einfach die vorgeschlagenen Antworten mit Enter bestätigen.
+
+**Aufs iPhone holen**
+1. Auf dem iPhone die App **TestFlight** aus dem App Store installieren.
+2. In https://appstoreconnect.apple.com unter *Meine Apps → Haushaltsbuch → TestFlight* dich selbst (und z. B. deine Partnerin oder deinen Partner) als Tester eintragen.
+3. Die Einladung per E-Mail in TestFlight öffnen und auf **Installieren** tippen. Die App erscheint wie jede andere auf dem Home-Bildschirm.
+
+Soll die App öffentlich im App Store erscheinen, reichst du sie in App Store Connect zur Prüfung ein (Screenshots, Beschreibung und Datenschutzangaben nötig).
+
+**Updates:** Nach Änderungen am Code einfach wieder `build` und `submit` ausführen. Die Build-Nummer zählt automatisch hoch.
+
+Die App-Kennung ist `de.rosenbohm.haushaltsbuch` (in `app.json`). Sie muss weltweit eindeutig sein und lässt sich nach der ersten Veröffentlichung nicht mehr ändern.
+
 ## Entwicklung
 
 ```bash
