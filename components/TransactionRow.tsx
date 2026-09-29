@@ -1,17 +1,31 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { categoryColor, formatCents, type Transaction } from '@/lib/budget';
+import { categoryColor, formatCents, type Entry } from '@/lib/budget';
+import { useMemberName, useStore } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
 
 type Props = {
-  transaction: Transaction;
+  entry: Entry;
   onPress: () => void;
-  onLongPress: () => void;
+  onLongPress?: () => void;
 };
 
-export function TransactionRow({ transaction: t, onPress, onLongPress }: Props) {
+export function TransactionRow({ entry: t, onPress, onLongPress }: Props) {
   const theme = useTheme();
+  const { members } = useStore();
+  const memberName = useMemberName();
   const isIncome = t.type === 'income';
+
+  const details: string[] = [];
+  if (t.note && t.note !== t.category) details.push(t.note);
+  if (members.length > 1) {
+    details.push(
+      t.split && t.split.length > 1
+        ? `${memberName(t.paidBy)} · geteilt (${t.split.length})`
+        : memberName(t.paidBy),
+    );
+  }
+  if (t.fixedId) details.push('monatlich');
 
   return (
     <Pressable
@@ -27,9 +41,9 @@ export function TransactionRow({ transaction: t, onPress, onLongPress }: Props) 
         <Text style={[styles.category, { color: theme.text }]} numberOfLines={1}>
           {t.category}
         </Text>
-        {t.note ? (
+        {details.length > 0 ? (
           <Text style={[styles.note, { color: theme.muted }]} numberOfLines={1}>
-            {t.note}
+            {details.join(' · ')}
           </Text>
         ) : null}
       </View>

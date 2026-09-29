@@ -42,6 +42,7 @@ function RootLayoutNav() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="buchung" options={{ presentation: 'modal', title: 'Buchung' }} />
+        <Stack.Screen name="fixposten" options={{ title: 'Fixkosten & Einkommen' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

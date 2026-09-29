@@ -9,7 +9,11 @@ const light = {
   tint: '#2E6FD8',
   income: '#1F8A58',
   expense: '#C93C3C',
+  warning: '#B26A00',
   track: '#ECEEF1',
+  // Diagrammfarben (farbenblind-sicher geprüft), getrennt von den Textfarben.
+  chartIncome: '#2E6FD8',
+  chartExpense: '#D9731E',
 };
 
 const dark: typeof light = {
@@ -21,7 +25,10 @@ const dark: typeof light = {
   tint: '#6EA0F5',
   income: '#4CC38A',
   expense: '#F07474',
+  warning: '#E8A94A',
   track: '#262A31',
+  chartIncome: '#5B8FE8',
+  chartExpense: '#C7721F',
 };
 
 export type Theme = typeof light;

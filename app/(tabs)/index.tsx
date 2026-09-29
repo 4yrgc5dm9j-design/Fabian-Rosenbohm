@@ -1,68 +1,131 @@
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { MonthSwitcher } from '@/components/MonthSwitcher';
+import { QuickAdd } from '@/components/QuickAdd';
+import { Card, CardTitle, Segmented } from '@/components/ui';
+import { ViewFilter } from '@/components/ViewFilter';
 import {
+  daysInMonth,
   formatCents,
-  inMonth,
-  summarize,
+  freeIncome,
+  shiftMonth,
+  toDateString,
   totalsByCategory,
   type TransactionType,
 } from '@/lib/budget';
+import { buildInsights, type InsightTone } from '@/lib/insights';
 import { useStore } from '@/lib/store';
 import { useTheme, type Theme } from '@/lib/theme';
+import { useMonthEntries } from '@/lib/useEntries';
 
 export default function OverviewScreen() {
-  const { transactions, month } = useStore();
+  const { month, viewer, settings } = useStore();
   const theme = useTheme();
   const [breakdown, setBreakdown] = useState<TransactionType>('expense');
 
-  const monthly = useMemo(() => inMonth(transactions, month), [transactions, month]);
-  const summary = useMemo(() => summarize(monthly), [monthly]);
-  const totals = useMemo(() => totalsByCategory(monthly, breakdown), [monthly, breakdown]);
+  const entries = useMonthEntries(month);
+  const previous = useMonthEntries(shiftMonth(month, -1));
+  const today = toDateString(new Date());
+  // Das Sparziel gilt für den ganzen Haushalt, nicht für einzelne Personen.
+  const free = useMemo(
+    () => freeIncome(entries, month, today, viewer ? 0 : settings.savingsGoalCents),
+    [entries, month, today, viewer, settings.savingsGoalCents],
+  );
+  const totals = useMemo(() => totalsByCategory(entries, breakdown), [entries, breakdown]);
+  const insights = useMemo(
+    () =>
+      buildInsights({
+        month,
+        previousMonth: shiftMonth(month, -1),
+        current: entries,
+        previous,
+        free,
+        dayOfMonth: free.daysLeft !== null ? Number(today.slice(8, 10)) : null,
+        daysInMonth: daysInMonth(month),
+      }),
+    [month, entries, previous, free, today],
+  );
 
-  const balanceColor = summary.balanceCents < 0 ? theme.expense : theme.income;
+  const spentShare = free.freeCents > 0 ? free.variableExpenseCents / free.freeCents : 1;
 
   return (
     <ScrollView
       style={{ backgroundColor: theme.background }}
-      contentContainerStyle={styles.content}>
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled">
+      <ViewFilter />
       <MonthSwitcher />
 
-      <View style={[styles.card, cardStyle(theme)]}>
-        <Text style={[styles.caption, { color: theme.muted }]}>Saldo</Text>
-        <Text style={[styles.balance, { color: balanceColor }]}>
-          {formatCents(summary.balanceCents)}
+      <Card>
+        <Text style={[styles.caption, { color: theme.muted }]}>Noch frei verfügbar</Text>
+        <Text
+          style={[
+            styles.hero,
+            { color: free.remainingCents < 0 ? theme.expense : theme.income },
+          ]}>
+          {formatCents(free.remainingCents)}
         </Text>
-        <View style={styles.split}>
-          <Stat label="Einnahmen" cents={summary.incomeCents} color={theme.income} theme={theme} />
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <Stat label="Ausgaben" cents={summary.expenseCents} color={theme.expense} theme={theme} />
-        </View>
-      </View>
+        {free.perDayCents !== null && free.daysLeft !== null ? (
+          <Text style={{ color: theme.muted, marginTop: 2 }}>
+            {formatCents(free.perDayCents)} pro Tag für die restlichen {free.daysLeft}{' '}
+            {free.daysLeft === 1 ? 'Tag' : 'Tage'}
+          </Text>
+        ) : null}
 
-      <View style={[styles.card, cardStyle(theme)]}>
-        <View style={[styles.segment, { backgroundColor: theme.track }]}>
-          {(['expense', 'income'] as const).map((type) => (
-            <Pressable
-              key={type}
-              onPress={() => setBreakdown(type)}
-              style={[styles.segmentItem, breakdown === type && { backgroundColor: theme.card }]}>
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: breakdown === type ? theme.text : theme.muted },
-                ]}>
-                {type === 'expense' ? 'Ausgaben' : 'Einnahmen'}
+        <View style={[styles.track, { backgroundColor: theme.track }]}>
+          <View
+            style={[
+              styles.fill,
+              {
+                width: `${Math.min(Math.max(spentShare, 0), 1) * 100}%`,
+                backgroundColor: spentShare > 0.9 ? theme.expense : theme.tint,
+              },
+            ]}
+          />
+        </View>
+
+        <Line label="Einnahmen" cents={free.incomeCents} theme={theme} />
+        <Line label="− Fixkosten" cents={-free.fixedExpenseCents} theme={theme} />
+        {free.savingsGoalCents > 0 ? (
+          <Line label="− Sparziel" cents={-free.savingsGoalCents} theme={theme} />
+        ) : null}
+        <Line label="= Frei verfügbares Einkommen" cents={free.freeCents} theme={theme} strong />
+        <Line label="− Bereits ausgegeben" cents={-free.variableExpenseCents} theme={theme} />
+        <Line label="= Rest" cents={free.remainingCents} theme={theme} strong />
+      </Card>
+
+      <QuickAdd />
+
+      {insights.length > 0 ? (
+        <Card>
+          <CardTitle>Empfehlungen</CardTitle>
+          {insights.map((i) => (
+            <View key={i.id} style={[styles.insight, { borderLeftColor: toneColor(i.tone, theme) }]}>
+              <Text style={[styles.insightTitle, { color: theme.text }]}>
+                {toneIcon(i.tone)} {i.title}
               </Text>
-            </Pressable>
+              <Text style={{ color: theme.muted, lineHeight: 20 }}>{i.text}</Text>
+            </View>
           ))}
-        </View>
+        </Card>
+      ) : null}
 
+      <Card>
+        <CardTitle>Nach Kategorie</CardTitle>
+        <Segmented
+          value={breakdown}
+          onChange={setBreakdown}
+          options={[
+            { value: 'expense', label: 'Ausgaben' },
+            { value: 'income', label: 'Einnahmen' },
+          ]}
+        />
+        <View style={{ height: 16 }} />
         {totals.length === 0 ? (
           <Text style={[styles.empty, { color: theme.muted }]}>
-            Keine {breakdown === 'expense' ? 'Ausgaben' : 'Einnahmen'} in diesem Monat.{'\n'}
-            Tippe oben rechts auf ＋, um eine Buchung anzulegen.
+            Keine {breakdown === 'expense' ? 'Ausgaben' : 'Einnahmen'} in diesem Monat.
           </Text>
         ) : (
           totals.map((t) => (
@@ -73,7 +136,7 @@ export default function OverviewScreen() {
                   {formatCents(t.cents)} · {Math.round(t.share * 100)} %
                 </Text>
               </View>
-              <View style={[styles.track, { backgroundColor: theme.track }]}>
+              <View style={[styles.track, styles.thinTrack, { backgroundColor: theme.track }]}>
                 <View
                   style={[
                     styles.fill,
@@ -84,41 +147,58 @@ export default function OverviewScreen() {
             </View>
           ))
         )}
-      </View>
+      </Card>
+
+      <Pressable onPress={() => router.push('/fixposten')} style={styles.link}>
+        <Text style={{ color: theme.tint, fontWeight: '600' }}>Fixkosten & Einkommen verwalten ›</Text>
+      </Pressable>
     </ScrollView>
   );
 }
 
-function Stat(props: { label: string; cents: number; color: string; theme: Theme }) {
+function Line(props: { label: string; cents: number; theme: Theme; strong?: boolean }) {
+  const { theme, strong } = props;
   return (
-    <View style={styles.stat}>
-      <Text style={[styles.caption, { color: props.theme.muted }]}>{props.label}</Text>
-      <Text style={[styles.statValue, { color: props.color }]}>{formatCents(props.cents)}</Text>
+    <View style={[styles.line, strong && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+      <Text style={[{ color: strong ? theme.text : theme.muted }, strong && styles.strong]}>
+        {props.label}
+      </Text>
+      <Text
+        style={[
+          styles.lineValue,
+          { color: strong ? theme.text : theme.muted },
+          strong && styles.strong,
+        ]}>
+        {formatCents(props.cents)}
+      </Text>
     </View>
   );
 }
 
-function cardStyle(theme: Theme) {
-  return { backgroundColor: theme.card, borderColor: theme.border };
+function toneColor(tone: InsightTone, theme: Theme) {
+  return tone === 'warning' ? theme.warning : tone === 'good' ? theme.income : theme.tint;
+}
+
+function toneIcon(tone: InsightTone) {
+  return tone === 'warning' ? '⚠︎' : tone === 'good' ? '✓' : 'ℹ︎';
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, gap: 16 },
-  card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 16 },
+  content: { padding: 16, gap: 16, paddingBottom: 32 },
   caption: { fontSize: 13, fontWeight: '500' },
-  balance: { fontSize: 34, fontWeight: '700', marginTop: 4, fontVariant: ['tabular-nums'] },
-  split: { flexDirection: 'row', marginTop: 16, alignItems: 'center' },
-  divider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginHorizontal: 16 },
-  stat: { flex: 1 },
-  statValue: { fontSize: 18, fontWeight: '600', marginTop: 2, fontVariant: ['tabular-nums'] },
-  segment: { flexDirection: 'row', borderRadius: 10, padding: 3, marginBottom: 16 },
-  segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 8 },
-  segmentText: { fontSize: 14, fontWeight: '600' },
-  empty: { textAlign: 'center', lineHeight: 20, paddingVertical: 12 },
+  hero: { fontSize: 36, fontWeight: '700', marginTop: 4, fontVariant: ['tabular-nums'] },
+  track: { height: 10, borderRadius: 5, overflow: 'hidden', marginTop: 14, marginBottom: 10 },
+  thinTrack: { height: 8, marginTop: 0, marginBottom: 0 },
+  fill: { height: '100%', borderRadius: 5 },
+  line: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+  lineValue: { fontVariant: ['tabular-nums'] },
+  strong: { fontWeight: '700' },
+  insight: { borderLeftWidth: 3, paddingLeft: 12, marginBottom: 14 },
+  insightTitle: { fontWeight: '700', marginBottom: 2 },
+  empty: { textAlign: 'center', paddingVertical: 12 },
   barRow: { marginBottom: 14 },
   barLabel: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   barName: { fontSize: 15, fontWeight: '500' },
   barValue: { fontSize: 13, fontVariant: ['tabular-nums'] },
-  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 4 },
+  link: { alignItems: 'center', paddingVertical: 4 },
 });

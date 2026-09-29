@@ -1,6 +1,6 @@
 import { Link, Tabs } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { Pressable } from 'react-native';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { Pressable, type ColorValue } from 'react-native';
 
 import { useTheme } from '@/lib/theme';
 
@@ -22,6 +22,10 @@ function AddButton() {
   );
 }
 
+function icon(name: SymbolViewProps['name']) {
+  return ({ color }: { color: ColorValue }) => <SymbolView name={name} tintColor={color} size={26} />;
+}
+
 export default function TabLayout() {
   const theme = useTheme();
 
@@ -35,26 +39,37 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Übersicht',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'chart.pie.fill', android: 'pie_chart', web: 'pie_chart' }}
-              tintColor={color}
-              size={26}
-            />
-          ),
+          tabBarIcon: icon({ ios: 'chart.pie.fill', android: 'pie_chart', web: 'pie_chart' }),
         }}
       />
       <Tabs.Screen
         name="buchungen"
         options={{
           title: 'Buchungen',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'list.bullet', android: 'list', web: 'list' }}
-              tintColor={color}
-              size={26}
-            />
-          ),
+          tabBarIcon: icon({ ios: 'list.bullet', android: 'list', web: 'list' }),
+        }}
+      />
+      <Tabs.Screen
+        name="vergleich"
+        options={{
+          title: 'Vergleich',
+          tabBarIcon: icon({ ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' }),
+        }}
+      />
+      <Tabs.Screen
+        name="netto"
+        options={{
+          title: 'Brutto-Netto',
+          headerRight: undefined,
+          tabBarIcon: icon({ ios: 'eurosign.circle.fill', android: 'euro', web: 'euro' }),
+        }}
+      />
+      <Tabs.Screen
+        name="haushalt"
+        options={{
+          title: 'Haushalt',
+          headerRight: undefined,
+          tabBarIcon: icon({ ios: 'person.2.fill', android: 'group', web: 'group' }),
         }}
       />
     </Tabs>
